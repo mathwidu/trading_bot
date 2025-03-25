@@ -4,6 +4,7 @@ from utils.binance_helpers import get_tickers, log_tickers
 from utils.data_collector import get_historical_data, save_historical_data_to_csv
 from strategies.moving_averages import calculate_sma, calculate_ema
 import pandas as pd
+import numpy as np
 
 # Configurando o cliente da Binance
 client = Client(API_KEY, API_SECRET)
@@ -17,8 +18,8 @@ log_tickers(tickers)
 
 # Configuração para buscar dados históricos
 SYMBOL = 'BTCUSDT'  # Moeda para buscar dados históricos
-INTERVAL = '1h'  # Intervalo dos dados
-LIMIT = 100  # Número de registros históricos a buscar
+INTERVAL = '1h'     # Intervalo dos dados
+LIMIT = 100         # Número de registros históricos a buscar
 FILE_PATH = './data/historical/historical_data.csv'
 
 # Baixa e salva os dados históricos
@@ -29,11 +30,29 @@ print(f"Dados históricos de {SYMBOL} salvos com sucesso em {FILE_PATH}!")
 
 # Carregar os dados históricos para cálculo de médias móveis
 data = pd.read_csv(FILE_PATH, names=['timestamp', 'symbol', 'close'])
-data['close'] = data['close'].astype(float)  # Converte os preços para float
+data['close'] = data['close'].astype(float)
 
 # Calcular médias móveis
 data['SMA_5'] = calculate_sma(data, 5)
 data['EMA_5'] = calculate_ema(data, 5)
 
-# Exibir as últimas 10 linhas com as médias calculadas
-print(data.tail(10))
+# Gerar sinais de compra e venda com base no cruzamento SMA/EMA
+data['Signal'] = np.where(
+    (data['EMA_5'] > data['SMA_5']) & (data['EMA_5'].shift(1) <= data['SMA_5'].shift(1)), 1,
+    np.where(
+        (data['EMA_5'] < data['SMA_5']) & (data['EMA_5'].shift(1) >= data['SMA_5'].shift(1)), -1,
+        0
+    )
+)
+
+# Exibir últimas 10 linhas com médias e sinais
+print("\nÚltimas 10 linhas com SMA, EMA e Sinais:")
+print(data[['timestamp', 'close', 'SMA_5', 'EMA_5', 'Signal']].tail(10))
+
+# Exibir sinais detectados
+print("\nSINAIS DETECTADOS:")
+for index, row in data.iterrows():
+    if row['Signal'] == 1:
+        print(f"{row['timestamp']}: SINAL DE COMPRA - Preço: {row['close']}")
+    elif row['Signal'] == -1:
+        print(f"{row['timestamp']}: SINAL DE VENDA - Preço: {row['close']}")
